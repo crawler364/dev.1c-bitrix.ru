@@ -215,7 +215,7 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
 
 
 class BitrixCourseParser:
-    def __init__(self, start_url, output_dir="./course_data", page_limit=None):
+    def __init__(self, start_url, output_dir="./course_data", page_limit=None, timeout=0.5):
         """
         Инициализация парсера
         
@@ -223,10 +223,12 @@ class BitrixCourseParser:
             start_url: Начальный URL для парсинга
             output_dir: Директория для сохранения данных
             page_limit: Максимальное количество страниц для скачивания
+            timeout: Таймаут между скачиваниями в секундах
         """
         self.start_url = start_url
         self.output_dir = output_dir
         self.page_limit = page_limit
+        self.timeout = timeout
         self.downloaded_pages = 0
         self.visited_urls = set()
         
@@ -457,7 +459,7 @@ class BitrixCourseParser:
             print(f"Обрабатываем урок {i+1}/{len(course_info['lessons'])}: {lesson['title']}")
             
             # Небольшая задержка между запросами
-            time.sleep(1)
+            time.sleep(self.timeout)
             
             lesson_parser, lesson_content = self.get_page_content(lesson['url'])
             if lesson_parser and lesson_content:
@@ -491,6 +493,12 @@ def main():
         default='./course_data',
         help='Директория для сохранения файлов'
     )
+    parser.add_argument(
+        '--timeout',
+        type=float,
+        default=0.5,
+        help='Таймаут между скачиваниями в секундах (по умолчанию: 0.5)'
+    )
     
     args = parser.parse_args()
     
@@ -498,7 +506,8 @@ def main():
     course_parser = BitrixCourseParser(
         start_url=args.url,
         output_dir=args.output,
-        page_limit=args.limit
+        page_limit=args.limit,
+        timeout=args.timeout
     )
     
     try:
