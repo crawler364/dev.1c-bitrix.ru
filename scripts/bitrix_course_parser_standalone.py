@@ -100,6 +100,7 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         self.in_script = False
         self.in_style = False
         self.in_courses_right_side = False
+        self.div_nesting_level = 0  # Track div nesting depth
         
     def handle_starttag(self, tag, attrs):
         self.current_tag = tag
@@ -108,9 +109,18 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
             setattr(self, f'in_{tag}', True)
         elif tag == 'div':
             # Проверяем наличие класса courses-right-side
+            has_courses_right_side = False
             for attr_name, attr_value in attrs:
                 if attr_name == 'class' and 'courses-right-side' in attr_value:
-                    self.in_courses_right_side = True
+                    has_courses_right_side = True
+                    break
+            
+            if has_courses_right_side:
+                self.in_courses_right_side = True
+                self.div_nesting_level = 1  # Start tracking nesting from level 1
+            elif self.in_courses_right_side:
+                # We're inside courses-right-side and found another div
+                self.div_nesting_level += 1
         elif tag == 'a' and not self.in_script and not self.in_style:
             href = None
             for attr_name, attr_value in attrs:
@@ -128,8 +138,8 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         if not text:
             return
             
-        # Если мы не в courses-right-side, игнорируем контент (кроме заголовков и ссылок)
-        if not self.in_courses_right_side and self.current_tag not in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'title', 'a']:
+        # Сохраняем только контент из courses-right-side блока
+        if not self.in_courses_right_side:
             return
             
         if self.current_tag in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
@@ -144,7 +154,11 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         if tag in ['script', 'style']:
             setattr(self, f'in_{tag}', False)
         elif tag == 'div' and self.in_courses_right_side:
-            self.in_courses_right_side = False
+            # Decrement nesting level when closing a div inside courses-right-side
+            self.div_nesting_level -= 1
+            # Only exit courses-right-side when we close the main div (level 0)
+            if self.div_nesting_level == 0:
+                self.in_courses_right_side = False
         elif tag == 'a' and hasattr(self, 'current_link_href'):
             if self.current_link_text:
                 self.links.append(f"- [{self.current_link_text.strip()}]({self.current_link_href})")
