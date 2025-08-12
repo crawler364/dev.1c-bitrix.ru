@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Bitrix Course Parser Runner
-# Скрипт для запуска парсера курсов Bitrix
+# Скрипт запуска парсера курсов Bitrix
 
 # Настройки по умолчанию
 DEFAULT_URL="https://dev.1c-bitrix.ru/learning/course/index.php?COURSE_ID=43&INDEX=Y"

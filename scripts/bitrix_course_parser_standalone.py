@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Bitrix Course Parser (Standalone Version)
+Парсер курсов Bitrix (Автономная версия)
 Парсер для скачивания курсов с сайта dev.1c-bitrix.ru
 Версия без внешних зависимостей - использует только стандартные библиотеки Python
 
-Usage:
+Использование:
     python bitrix_course_parser_standalone.py [--limit N] [--output DIR]
     
-Arguments:
+Аргументы:
     --limit N    : Ограничить количество скачиваемых страниц (по умолчанию: без ограничений)
     --output DIR : Директория для сохранения файлов (по умолчанию: ./course_data)
 """
@@ -40,14 +40,14 @@ class SimpleHTMLParser(html.parser.HTMLParser):
             for attr_name, attr_value in attrs:
                 if attr_name == 'href':
                     href = attr_value
-            # Improved lesson link detection
+            # Улучшенное определение ссылок на уроки
             if href:
-                # Check for lesson-related URLs
+                # Проверяем ссылки связанные с уроками
                 if ('lesson' in href.lower() or 
                     'LESSON_ID' in href or 
                     'CHAPTER_ID' in href or
                     ('/learning/course/' in href and ('LESSON_ID=' in href or 'CHAPTER_ID=' in href))):
-                    # Skip CSS and other non-content links
+                    # Пропускаем CSS и другие не относящиеся к контенту ссылки
                     if not href.endswith('.css') and not href.endswith('.js'):
                         self.links.append(href)
     
@@ -99,7 +99,7 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         self.in_script = False
         self.in_style = False
         self.in_courses_right_side = False
-        self.div_nesting_level = 0  # Track div nesting depth
+        self.div_nesting_level = 0  # Отслеживаем глубину вложенности div
         
     def handle_starttag(self, tag, attrs):
         self.current_tag = tag
@@ -116,9 +116,9 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
             
             if has_courses_right_side:
                 self.in_courses_right_side = True
-                self.div_nesting_level = 1  # Start tracking nesting from level 1
+                self.div_nesting_level = 1  # Начинаем отслеживать вложенность с уровня 1
             elif self.in_courses_right_side:
-                # We're inside courses-right-side and found another div
+                # Мы внутри courses-right-side и нашли еще один div
                 self.div_nesting_level += 1
         elif tag == 'a' and not self.in_script and not self.in_style:
             href = None
@@ -153,14 +153,14 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         if tag in ['script', 'style']:
             setattr(self, f'in_{tag}', False)
         elif tag == 'div' and self.in_courses_right_side:
-            # Decrement nesting level when closing a div inside courses-right-side
+            # Уменьшаем уровень вложенности при закрытии div внутри courses-right-side
             self.div_nesting_level -= 1
-            # Only exit courses-right-side when we close the main div (level 0)
+            # Выходим из courses-right-side только когда закрываем основной div (уровень 0)
             if self.div_nesting_level == 0:
                 self.in_courses_right_side = False
         elif tag == 'a' and hasattr(self, 'current_link_href'):
             if self.current_link_text:
-                # Add only the link text as bold text, without the URL
+                # Добавляем только текст ссылки как жирный текст, без URL
                 bold_text = f"**{self.current_link_text.strip()}**"
                 self.text_content.append(bold_text)
             delattr(self, 'current_link_href')
@@ -268,15 +268,15 @@ class BitrixCourseParser:
             )
             
             with urllib.request.urlopen(req, timeout=30) as response:
-                # Read raw content
+                # Читаем необработанный контент
                 raw_content = response.read()
             
-                # Try to decompress if gzipped
+                # Пытаемся распаковать если сжато gzip
                 try:
                     if response.headers.get('Content-Encoding') == 'gzip':
                         content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
                     else:
-                        # Try gzip anyway in case header is missing
+                        # Пытаемся gzip в любом случае если заголовок отсутствует
                         try:
                             content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
                         except:
@@ -284,7 +284,7 @@ class BitrixCourseParser:
                 except Exception as e:
                     content = raw_content.decode('utf-8', errors='ignore')
             
-                # Decode HTML entities
+                # Декодируем HTML сущности
                 content = html.unescape(content)
             
                 # Парсим HTML
