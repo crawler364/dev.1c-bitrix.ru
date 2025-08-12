@@ -94,7 +94,6 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         super().__init__()
         self.content_parts = []
         self.headers = []
-        self.links = []
         self.text_content = []
         self.current_tag = None
         self.in_script = False
@@ -161,7 +160,9 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
                 self.in_courses_right_side = False
         elif tag == 'a' and hasattr(self, 'current_link_href'):
             if self.current_link_text:
-                self.links.append(f"- [{self.current_link_text.strip()}]({self.current_link_href})")
+                # Add only the link text as bold text, without the URL
+                bold_text = f"**{self.current_link_text.strip()}**"
+                self.text_content.append(bold_text)
             delattr(self, 'current_link_href')
             if hasattr(self, 'current_link_text'):
                 delattr(self, 'current_link_text')
@@ -179,7 +180,6 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         md_lines.append("## Метаданные")
         md_lines.append("")
         md_lines.append(f"- **URL:** {url}")
-        md_lines.append(f"- **Дата скачивания:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         md_lines.append("")
         md_lines.append("---")
         md_lines.append("")
@@ -191,13 +191,6 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
         # Добавляем заголовки
         if self.headers:
             md_lines.extend(self.headers)
-            md_lines.append("")
-        
-        # Добавляем ссылки
-        if self.links:
-            md_lines.append("### Ссылки")
-            md_lines.append("")
-            md_lines.extend(self.links)
             md_lines.append("")
         
         # Добавляем основной текст
