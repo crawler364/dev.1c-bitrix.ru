@@ -398,10 +398,23 @@ class BitrixCourseParser:
             
             md_content = md_parser.get_markdown_content(url, title)
             
-            # Сохраняем в формате MD
-            md_filename = os.path.join(self.output_dir, f"{base_filename}.md")
-            with open(md_filename, 'w', encoding='utf-8') as f:
-                f.write(md_content)
+            # Сохраняем в папку соответствующую названию курса
+            if 'COURSE_ID' in query_params:
+                course_id = query_params['COURSE_ID'][0]
+                course_subdir = os.path.join(self.output_dir, f"course_{course_id}")
+                os.makedirs(course_subdir, exist_ok=True)
+                
+                course_md_filename = os.path.join(course_subdir, f"{base_filename}.md")
+                with open(course_md_filename, 'w', encoding='utf-8') as f:
+                    f.write(md_content)
+            else:
+                # Если ID курса не удалось определить, сохраняем в папку data/course
+                course_subdir = os.path.join(self.output_dir, "course")
+                os.makedirs(course_subdir, exist_ok=True)
+                
+                course_md_filename = os.path.join(course_subdir, f"{base_filename}.md")
+                with open(course_md_filename, 'w', encoding='utf-8') as f:
+                    f.write(md_content)
             
             print(f"Сохранено в MD: {base_filename}")
             
@@ -432,10 +445,26 @@ class BitrixCourseParser:
         print(f"Найден курс: {course_info['title']}")
         print(f"Количество уроков: {len(course_info['lessons'])}")
         
-        # Сохраняем информацию о курсе
-        course_info_file = os.path.join(self.output_dir, 'course_info.json')
-        with open(course_info_file, 'w', encoding='utf-8') as f:
-            json.dump(course_info, f, ensure_ascii=False, indent=2)
+        # Сохраняем в папку соответствующую названию курса
+        parsed_url = urllib.parse.urlparse(self.start_url)
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        
+        if 'COURSE_ID' in query_params:
+            course_id = query_params['COURSE_ID'][0]
+            course_subdir = os.path.join(self.output_dir, f"course_{course_id}")
+            os.makedirs(course_subdir, exist_ok=True)
+            
+            course_info_subfile = os.path.join(course_subdir, 'course_info.json')
+            with open(course_info_subfile, 'w', encoding='utf-8') as f:
+                json.dump(course_info, f, ensure_ascii=False, indent=2)
+        else:
+            # Если ID курса не удалось определить, сохраняем в папку data/course
+            course_subdir = os.path.join(self.output_dir, "course")
+            os.makedirs(course_subdir, exist_ok=True)
+            
+            course_info_subfile = os.path.join(course_subdir, 'course_info.json')
+            with open(course_info_subfile, 'w', encoding='utf-8') as f:
+                json.dump(course_info, f, ensure_ascii=False, indent=2)
         
         # Сохраняем начальную страницу
         self.save_page_content(
