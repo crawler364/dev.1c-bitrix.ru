@@ -24,6 +24,16 @@ import gzip
 import html
 from datetime import datetime
 
+# Импорт функций генерации карты курсов
+try:
+    from course_map_generator import scan_courses_directory, generate_course_map
+except ImportError:
+    # Если модуль не найден, создаем заглушки
+    def scan_courses_directory(data_dir):
+        return []
+    def generate_course_map(courses, output_file):
+        pass
+
 
 class SimpleHTMLParser(html.parser.HTMLParser):
     def __init__(self):
@@ -518,6 +528,24 @@ class BitrixCourseParser:
         
         print(f"Парсинг завершен. Скачано страниц: {self.downloaded_pages}")
         print(f"Файлы сохранены в: {os.path.abspath(self.output_dir)}")
+        
+        # Генерируем карту курсов после завершения парсинга
+        print("📝 Генерация карты курсов...")
+        try:
+            # Определяем корневую директорию проекта (на уровень выше output_dir)
+            project_root = os.path.dirname(os.path.abspath(self.output_dir))
+            data_dir = os.path.abspath(self.output_dir)
+            output_file = os.path.join(project_root, 'COURSES_MAP.md')
+            
+            # Сканируем курсы и генерируем карту
+            courses = scan_courses_directory(data_dir)
+            if courses:
+                generate_course_map(courses, output_file)
+                print(f"✅ Карта курсов обновлена: {output_file}")
+            else:
+                print("⚠️  Курсы для карты не найдены")
+        except Exception as e:
+            print(f"❌ Ошибка при генерации карты курсов: {e}")
 
 
 def main():
