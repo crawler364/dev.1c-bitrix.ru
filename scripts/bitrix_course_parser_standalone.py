@@ -235,7 +235,7 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
 
 
 class BitrixCourseParser:
-    def __init__(self, start_url, output_dir="./course_data", page_limit=None, timeout=0.5):
+    def __init__(self, start_url, output_dir="./course_data", page_limit=None, timeout=0.5, retries=5):
         """
         Инициализация парсера
         
@@ -244,11 +244,13 @@ class BitrixCourseParser:
             output_dir: Директория для сохранения данных
             page_limit: Максимальное количество страниц для скачивания
             timeout: Таймаут между скачиваниями в секундах
+            retries: Количество попыток скачивания при ошибке
         """
         self.start_url = start_url
         self.output_dir = output_dir
         self.page_limit = page_limit
         self.timeout = timeout
+        self.retries = retries
         self.downloaded_pages = 0
         self.visited_urls = set()
         
@@ -263,7 +265,7 @@ class BitrixCourseParser:
     
     def get_page_content(self, url):
         """
-        Получение содержимого страницы
+        Получение содержимого страницы с поддержкой повторных попыток
         
         Args:
             url: URL страницы
@@ -271,57 +273,75 @@ class BitrixCourseParser:
         Returns:
             (parser, content) или (None, None) в случае ошибки
         """
-        try:
-            print(f"Загружаем: {url}")
-            
-            # Создаем запрос с заголовками браузера
-            req = urllib.request.Request(
-                url,
-                headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                }
-            )
-            
-            with urllib.request.urlopen(req, timeout=30) as response:
-                # Читаем необработанный контент
-                raw_content = response.read()
-            
-                # Пытаемся распаковать если сжато gzip
-                try:
-                    if response.headers.get('Content-Encoding') == 'gzip':
-                        content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
-                    else:
-                        # Пытаемся gzip в любом случае если заголовок отсутствует
-                        try:
-                            content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
-                        except:
-                            content = raw_content.decode('utf-8', errors='ignore')
-                except Exception as e:
-                    content = raw_content.decode('utf-8', errors='ignore')
-            
-                # Декодируем HTML сущности
-                content = html.unescape(content)
-            
-                # Парсим HTML
-                parser = SimpleHTMLParser()
-                parser.feed(content)
-            
-                return parser, content
+        last_exception = None
+        
+        for attempt in range(self.retries):
+            try:
+                if attempt > 0:
+                    # Экспоненциальная задержка: 1, 2, 4, 8 секунд...
+                    delay = 2 ** (attempt - 1)
+                    print(f"Повторная попытка {attempt + 1}/{self.retries} через {delay} сек...")
+                    time.sleep(delay)
                 
-        except urllib.error.HTTPError as e:
-            print(f"HTTP ошибка при загрузке {url}: {e.code} - {e.reason}")
-            return None, None
-        except urllib.error.URLError as e:
-            print(f"Ошибка URL при загрузке {url}: {e.reason}")
-            return None, None
-        except Exception as e:
-            print(f"Неожиданная ошибка при обработке {url}: {e}")
-            return None, None
+                print(f"Загружаем: {url}")
+                
+                # Создаем запрос с заголовками браузера
+                req = urllib.request.Request(
+                    url,
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+                        'Accept-Encoding': 'gzip, deflate',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                    }
+                )
+                
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    # Читаем необработанный контент
+                    raw_content = response.read()
+                
+                    # Пытаемся распаковать если сжато gzip
+                    try:
+                        if response.headers.get('Content-Encoding') == 'gzip':
+                            content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
+                        else:
+                            # Пытаемся gzip в любом случае если заголовок отсутствует
+                            try:
+                                content = gzip.decompress(raw_content).decode('utf-8', errors='ignore')
+                            except:
+                                content = raw_content.decode('utf-8', errors='ignore')
+                    except Exception as e:
+                        content = raw_content.decode('utf-8', errors='ignore')
+                
+                    # Декодируем HTML сущности
+                    content = html.unescape(content)
+                
+                    # Парсим HTML
+                    parser = SimpleHTMLParser()
+                    parser.feed(content)
+                
+                    if attempt > 0:
+                        print(f"✅ Успешно загружено с попытки {attempt + 1}")
+                
+                    return parser, content
+                    
+            except urllib.error.HTTPError as e:
+                last_exception = e
+                print(f"HTTP ошибка при загрузке {url}: {e.code} - {e.reason}")
+                if e.code in [404, 403, 401]:  # Не повторяем для ошибок клиента
+                    break
+            except urllib.error.URLError as e:
+                last_exception = e
+                print(f"Ошибка URL при загрузке {url}: {e.reason}")
+            except Exception as e:
+                last_exception = e
+                print(f"Неожиданная ошибка при обработке {url}: {e}")
+        
+        # Все попытки исчерпаны
+        print(f"❌ Не удалось загрузить {url} после {self.retries} попыток")
+        return None, None
     
     def extract_course_info(self, parser):
         """
@@ -571,6 +591,12 @@ def main():
         default=0.5,
         help='Таймаут между скачиваниями в секундах (по умолчанию: 0.5)'
     )
+    parser.add_argument(
+        '--retries',
+        type=int,
+        default=5,
+        help='Количество попыток скачивания при ошибке (по умолчанию: 5)'
+    )
     
     args = parser.parse_args()
     
@@ -579,7 +605,8 @@ def main():
         start_url=args.url,
         output_dir=args.output,
         page_limit=args.limit,
-        timeout=args.timeout
+        timeout=args.timeout,
+        retries=args.retries
     )
     
     try:
