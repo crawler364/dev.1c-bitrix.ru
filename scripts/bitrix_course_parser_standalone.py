@@ -212,6 +212,16 @@ class MarkdownExtractorParser(html.parser.HTMLParser):
             md_lines.extend(cleaned_lines)
         
         return '\n'.join(md_lines)
+    
+    def has_courses_right_side_content(self):
+        """
+        Проверяет, был ли найден и обработан контент из блока courses-right-side
+        
+        Returns:
+            bool: True если найден контент из courses-right-side, False иначе
+        """
+        # Проверяем наличие заголовков или текстового контента
+        return bool(self.headers or self.text_content)
 
 
 class BitrixCourseParser:
@@ -391,6 +401,11 @@ class BitrixCourseParser:
             # Извлекаем содержимое в формате Markdown
             md_parser = MarkdownExtractorParser()
             md_parser.feed(content)
+            
+            # Проверяем, был ли найден блок courses-right-side с контентом
+            if not md_parser.has_courses_right_side_content():
+                print(f"Пропускаем сохранение страницы {url}: блок courses-right-side не найден или пуст")
+                return
             
             title = page_info.get('title', parser.title) if page_info else parser.title
             if not title:
